@@ -17,7 +17,7 @@ function main() {
   # -sオプションの場合、~/.tflinkを作成して終了
   if [[ -n $SETPATH ]]; then
     echo $SETPATH > ~/.tflink
-    echo "モジュールのベースパスを"$SETPATH"に設定しました。"
+    echo "set the module path to "$SETPATH
     exit 0
   fi
 
