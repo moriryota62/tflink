@@ -9,7 +9,7 @@ function main() {
     case $OPT in
        m) MODULE="$OPTARG";;
        s) SETPATH="$OPTARG";;
-       *) echo "該当なし（OPT=$OPT）";;
+       *) echo "no option（OPT=$OPT）";;
     esac
   done
   shift $((OPTIND - 1))
