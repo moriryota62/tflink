@@ -1,0 +1,108 @@
+#! /bin/bash
+
+function main() {
+  # オプションの確認
+  MODULE=""
+  SETPATH=""
+  while getopts m:s: OPT
+  do
+    case $OPT in
+       m) MODULE="$OPTARG";;
+       s) SETPATH="$OPTARG";;
+       *) echo "該当なし（OPT=$OPT）";;
+    esac
+  done
+  shift $((OPTIND - 1))
+
+  # -sオプションの場合、~/.tflinkを作成して終了
+  if [[ -n $SETPATH ]]; then
+    echo $SETPATH > ~/.tflink
+    echo "モジュールのベースパスを"$SETPATH"に設定しました。"
+    exit 0
+  fi
+
+  # ~/.tflinkからTerraformモジュールディレクトリを読み込み存在確認
+  TFMODULEPATH=$(<~/.tflink)
+  if [ ! -d $TFMODULEPATH ]; then
+    echo $TFMODULEPATH "is not exist. Please set base module path with -s option."
+    exit 1
+  fi
+
+  # Terraformモジュールディレクトリの相対パスを取得
+  TARGET=`relative-path $TFMODULEPATH`
+
+  # カレントディレクトリ名の取得。オプションでモジュール名が指定されていればオプションの名前にする
+  if [ -z $MODULE ]; then
+    CURRENTDIR=$(basename $(pwd))
+  else
+    CURRENTDIR=$MODULE
+  fi
+
+  # カレントディレクトリ名と同じTerraformモジュールの存在確認
+  TARGETMODULE="$TARGET$CURRENTDIR"
+  if [ ! -d $TARGETMODULE ]; then
+    echo $TARGETMODULE "is not exist. Check if the current directory name is the same as the module directory name."
+    exit 1
+  fi
+
+  # 対象モジュールのファイル一覧を取得
+  MODULEFILES="$TARGETMODULE/*"
+
+  # カレントディレクトリのシンボリックリンクをすべて削除（冪等性）
+  for currentFile in $(ls); do
+    if [ -L $currentFile ]; then
+      echo $currentFile "is symboliclink. delete link"
+      rm $currentFile
+    fi
+  done
+
+  # シンボリックリンクの作成
+  for filepath in $MODULEFILES; do
+    echo "ln -s " $filepath $(basename ${filepath})
+    ln -s $filepath $(basename ${filepath})
+  done
+
+  exit 0
+}
+
+# 相対パスを取得する関数
+function relative-path(){
+  TFMODULEPATH=$1
+
+  ## Terraformモジュールディレクトリのパスを配列に格納
+  TFMODULEPATHLIST=(${TFMODULEPATH//\// })
+
+  ## カレントディレクトリのパスを配列に格納
+  CURRENT=$(pwd)
+  CURRENTLIST=(${CURRENT//\// })
+
+  ## 相対パス変数の準備
+  TARGETPATH=""
+  ##　違うディレクトリを見つけたらfalseにする
+  is_true=true
+
+  ## カレントとモジュールのパスを比べる
+  ## 同じ深さで同じディレクトリであればモジュールパスのリストから削除
+  ## 同じ深さで違うディレクトリ名が出現したら、残りのCURRENTLISTの深さだけTARGETPATHに../を追加する
+  for ((i=0;i<${#CURRENTLIST[@]};i++)); do
+    if "${is_true}" ; then
+      if [ ${CURRENTLIST[$i]} = ${TFMODULEPATHLIST[$i]} ] ; then
+        unset TFMODULEPATHLIST[$i]
+      else
+        TARGETPATH+="../"
+        is_true=false
+      fi
+    else
+      TARGETPATH+="../"
+    fi
+  done
+
+  ## TFMODULEPATHLISTの残りの部分を追加して相対パスを作る
+  for i in ${TFMODULEPATHLIST[@]}; do
+    TARGETPATH+=$i"/"
+  done
+
+  echo $TARGETPATH
+}
+
+main "$@"
